@@ -10,25 +10,31 @@ export default function SelectRolePage() {
             P
           </div>
           <h1 className="mt-6 text-3xl font-semibold tracking-tight text-stone-900">
-            Who&rsquo;s signing in?
+            Where to next?
           </h1>
-          <p className="mt-2 text-stone-500">Choose how you&rsquo;d like to continue.</p>
+          <p className="mt-2 text-stone-500">You have administrator access &mdash; pick a side.</p>
         </div>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <RoleCard
             href="/experience"
             icon={UserRound}
-            title="I'm an employee"
+            title="Employee experience"
             description="Talk with SRS TN for questions, onboarding help, and benefits."
           />
           <RoleCard
             href="/admin"
             icon={ShieldCheck}
-            title="I'm an administrator"
+            title="Admin panel"
             description="Manage avatars, personas, knowledge sources, and conversation logs."
           />
         </div>
+
+        <form action="/auth/signout" method="post" className="mt-8 text-center">
+          <button type="submit" className="text-sm text-stone-400 underline-offset-4 transition-colors hover:text-stone-700 hover:underline">
+            Sign out
+          </button>
+        </form>
       </div>
     </div>
   );

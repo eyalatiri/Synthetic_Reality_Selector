@@ -98,7 +98,24 @@ export function StepPersona({
                       <Td>
                         <button
                           type="button"
-                          onClick={() => onChange({ ...data, existingPersonaId: persona.id })}
+                          onClick={() =>
+                            onChange({
+                              ...data,
+                              existingPersonaId: persona.id,
+                              // Mirror the chosen persona's fields onto the shared
+                              // draft, same reasoning as StepAvatar.tsx's selection
+                              // handler: StepTest.tsx sends data.persona straight
+                              // through as the preview chat's personaOverride, so
+                              // without this an existing-mode pick would run the
+                              // test chat with an empty prompt.
+                              name: persona.name,
+                              type: persona.type,
+                              prompt: persona.prompt,
+                              qnaModel: persona.qnaModel,
+                              creativity: persona.creativity,
+                              gender: persona.gender,
+                            })
+                          }
                           aria-label={`Select ${persona.name}`}
                           aria-pressed={selected}
                           className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors ${

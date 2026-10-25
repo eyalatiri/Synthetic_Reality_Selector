@@ -80,6 +80,10 @@ export function useSpeechToText({
   const lastLoudRef = useRef<number>(0);
   const segmentStartRef = useRef<number>(0);
   const wantRunningRef = useRef(false);
+  const startingRef = useRef(false); // blocks a 2nd start() while the 1st is still awaiting getUserMedia
+  const segMaxRmsRef = useRef(0); // loudest RMS seen in the current segment
+  const startedAtRef = useRef(0);
+  const warnedSilentRef = useRef(false);
   const onFinalRef = useRef(onFinalTranscript);
   onFinalRef.current = onFinalTranscript;
 
@@ -112,6 +116,14 @@ export function useSpeechToText({
     speechStartRef.current = null;
 
     const blob = new Blob(blobs, { type: blobs[0]?.type || "audio/webm" });
+
+    // Digital silence (RMS never rose above ~0) can't contain speech. Sending it
+    // only makes Whisper hallucinate "Thank you." — skip it. Real quiet speech
+    // is still far above this floor.
+    if (segMaxRmsRef.current < 0.0008) {
+      console.log(`[stt-debug] segment dropped: mic is silent (max rms=${segMaxRmsRef.current.toFixed(5)})`);
+      return;
+    }
 
     if (blob.size < minBlobBytes) {
       console.log(`[stt-debug] segment dropped: size=${blob.size}b < minBlobBytes=${minBlobBytes}b`);
@@ -152,6 +164,7 @@ export function useSpeechToText({
 
     chunksRef.current = [];
     speechStartRef.current = null;
+    segMaxRmsRef.current = 0;
     segmentStartRef.current = Date.now();
 
     const recorder = new MediaRecorder(stream);
@@ -185,6 +198,15 @@ export function useSpeechToText({
     const SPEECH_THRESHOLD = 0.01; // lowered from 0.02 — was too high for many mics/gain setups
 
     const now = Date.now();
+    if (rms > segMaxRmsRef.current) segMaxRmsRef.current = rms;
+
+    // Mic opened but delivers pure silence for 3s: tell the user instead of failing quietly.
+    if (!warnedSilentRef.current && now - startedAtRef.current > 3000 && segMaxRmsRef.current < 0.0008) {
+      warnedSilentRef.current = true;
+      setError(
+        "The microphone is open but silent. Another app/tab may be using it, it is muted at OS level, or the wrong input device is selected."
+      );
+    }
 
     if (now - lastRmsLogRef.current > 500) {
       lastRmsLogRef.current = now;
@@ -217,13 +239,25 @@ export function useSpeechToText({
   }, [silenceMs, maxSegmentMs]);
 
   const start = useCallback(async () => {
-    if (wantRunningRef.current) return; // already running - no-op instead of throwing
+    if (wantRunningRef.current || startingRef.current) return; // already running/starting - no-op
+    startingRef.current = true;
     setError(null);
+    warnedSilentRef.current = false;
 
+    let stream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      const track = stream.getAudioTracks()[0];
+      console.log(`[stt-debug] mic track: label="${track?.label}" muted=${track?.muted} state=${track?.readyState}`);
+      if (track) {
+        track.onmute = () => console.log("[stt-debug] mic track MUTED by browser/OS");
+        track.onunmute = () => console.log("[stt-debug] mic track unmuted");
+      }
       streamRef.current = stream;
       wantRunningRef.current = true;
+      startedAtRef.current = Date.now();
 
       const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       const audioCtx = new AudioCtx();
@@ -254,10 +288,24 @@ export function useSpeechToText({
       setIsListening(true);
       console.log("[stt-debug] listening started");
     } catch (err) {
+      stream?.getTracks().forEach((t) => t.stop());
       wantRunningRef.current = false;
       console.log("[stt-debug] start() failed:", err);
-      setError(err instanceof Error ? err.message : "Microphone access failed");
+      const name = err instanceof DOMException ? err.name : "";
+      setError(
+        name === "NotReadableError"
+          ? "Microphone is in use by another app or tab (Teams/Zoom/Discord/OBS, another browser tab). Close it, then click the mic again."
+          : name === "NotAllowedError"
+            ? "Microphone permission denied. Allow it in the browser's address-bar lock icon."
+            : name === "NotFoundError"
+              ? "No microphone found."
+              : err instanceof Error
+                ? err.message
+                : "Microphone access failed"
+      );
       setIsListening(false);
+    } finally {
+      startingRef.current = false;
     }
   }, [monitorVolume, startSegment]);
 

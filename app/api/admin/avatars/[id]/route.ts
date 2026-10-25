@@ -26,6 +26,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (typeof body.name === "string") patch.name = body.name;
     if (typeof body.owner === "string") patch.owner = body.owner;
     if (typeof body.imageUrl === "string" || body.imageUrl === null) patch.image_url = body.imageUrl;
+    if (typeof body.videoUrl === "string" || body.videoUrl === null) patch.video_url = body.videoUrl;
     if (body.ownerType === "Organisation" || body.ownerType === "Individual") patch.owner_type = body.ownerType;
     if (["Full body", "Half body", "Head only"].includes(body.bodyType as string)) {
       patch.body_type = body.bodyType;

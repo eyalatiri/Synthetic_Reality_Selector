@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminPageHeader, AdminPrimaryButton, AdminSecondaryButton } from "@/components/admin/AdminPageHeader";
 import { AdminCard } from "@/components/admin/AdminCard";
+import { AvatarVideoUpload } from "@/components/admin/avatar/AvatarVideoUpload";
 import type { OwnerType, BodyType } from "@/lib/admin/types";
 
 // Deliberately the plain counterpart to the avatar-wizard at
@@ -21,6 +22,10 @@ export default function AddAvatarPage() {
   const [ownerType, setOwnerType] = useState<OwnerType>("Organisation");
   const [bodyType, setBodyType] = useState<BodyType>("Half body");
   const [imageUrl, setImageUrl] = useState("");
+  // Set by <AvatarVideoUpload /> once /api/admin/avatars/create-video
+  // (LivePortrait -> Supabase Storage) has returned a public URL.
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoProcessing, setVideoProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +50,9 @@ export default function AddAvatarPage() {
           ownerType,
           bodyType,
           imageUrl: imageUrl.trim() || undefined,
-          status: "Draft",
+          videoUrl: videoUrl ?? undefined,
+          // "Draft" isn't a valid PublishState (Private | Public | Archived).
+          status: "Private",
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed to create avatar");
@@ -127,6 +134,8 @@ export default function AddAvatarPage() {
                 className="w-full rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-accent"
               />
             </label>
+
+            <AvatarVideoUpload value={videoUrl} onChange={setVideoUrl} onProcessingChange={setVideoProcessing} />
           </div>
         </AdminCard>
 
@@ -136,8 +145,8 @@ export default function AddAvatarPage() {
 
         <div className="mt-6 flex items-center justify-between">
           <AdminSecondaryButton onClick={() => router.push("/admin/avatars")}>Cancel</AdminSecondaryButton>
-          <AdminPrimaryButton onClick={handleSave} disabled={saving}>
-            {saving ? "Creating…" : "Create avatar"}
+          <AdminPrimaryButton onClick={handleSave} disabled={saving || videoProcessing}>
+            {saving ? "Creating…" : videoProcessing ? "Processing video…" : "Create avatar"}
           </AdminPrimaryButton>
         </div>
       </div>

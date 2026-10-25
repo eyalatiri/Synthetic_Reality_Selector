@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 
 // ---- Types -----------------------------------------------------------
-export type ConversationStatus = "listening" | "speaking" | "idle";
+// "thinking" = the reply text is done and its voice/video is being generated.
+export type ConversationStatus = "listening" | "speaking" | "thinking" | "idle";
 
 export interface VoiceConversationScreenProps {
   brandName?: string;
@@ -40,6 +41,8 @@ export interface VoiceConversationScreenProps {
   micActive?: boolean;
   /** False when the browser has no Web Speech API — shows a hint instead of hiding the button. */
   micSupported?: boolean;
+  /** Replaces the placeholder in the right panel — pass <AvatarStage /> (absolutely positioned, fills the panel). */
+  avatarSlot?: React.ReactNode;
 }
 
 // ---- Helpers -----------------------------------------------------------
@@ -86,6 +89,7 @@ export default function VoiceConversationScreen({
   sending = false,
   micActive,
   micSupported = true,
+  avatarSlot,
 }: VoiceConversationScreenProps) {
   // Local fallback state so this component still works standalone (e.g.
   // admin preview) when no micActive prop is passed in. Once a parent
@@ -211,14 +215,15 @@ export default function VoiceConversationScreen({
 
       {/* ---------------- Right panel (avatar video) ---------------- */}
       <div className="relative hidden flex-1 md:block">
-        {/* Placeholder for the live HeyGen avatar stream.
-            Replace this div's contents with the HeyGen embed/video element. */}
-        <div className="absolute inset-0 bg-gradient-to-br from-neutral-800 via-neutral-700 to-neutral-900">
-          <div className="flex h-full items-center justify-center text-sm tracking-wide text-neutral-400">
-            Avatar video stream mounts here
+        {/* The avatar: idle loop + MuseTalk lip-synced reply clips (see components/avatar/AvatarStage.tsx). */}
+        {avatarSlot ?? (
+          <div className="absolute inset-0 bg-gradient-to-br from-neutral-800 via-neutral-700 to-neutral-900">
+            <div className="flex h-full items-center justify-center text-sm tracking-wide text-neutral-400">
+              No avatar video
+            </div>
           </div>
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+        )}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
 
         {/* Top-right utility bar */}
         <div className="absolute right-6 top-6 flex items-center gap-2 rounded-full bg-black/30 px-3 py-2 backdrop-blur-sm">

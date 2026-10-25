@@ -6,6 +6,7 @@ import {
   Library,
   Settings,
   Microscope,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -18,7 +19,7 @@ export type AdminNavItem = {
 
 // Single source of truth for the admin sidebar. Order here is the visual
 // top-to-bottom order in the mockups: Dashboard, Avatars, Conversations,
-// Knowledge, Settings, Testing lab.
+// Knowledge, Testing lab, Users, Settings.
 export const adminNavItems: AdminNavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { id: "avatars", label: "Avatars", href: "/admin/avatars", icon: UserCircle2 },
@@ -26,6 +27,7 @@ export const adminNavItems: AdminNavItem[] = [
   { id: "conversations", label: "Conversations", href: "/admin/conversations", icon: MessageCircle },
   { id: "knowledge", label: "Knowledge", href: "/admin/knowledge", icon: Library },
   { id: "testing", label: "Testing lab", href: "/admin/testing", icon: Microscope },
+  { id: "users", label: "Users", href: "/admin/users", icon: Users },
   { id: "settings", label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 

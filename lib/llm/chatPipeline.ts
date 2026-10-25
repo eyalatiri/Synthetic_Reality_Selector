@@ -175,11 +175,25 @@ function sseFrame(data: unknown) {
  */
 export function runChatPipeline(input: ChatPipelineInput): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
+  // Set when the browser goes away (tab reload, navigation, abort). Any
+  // later enqueue()/close() on the dead controller throws "Controller is
+  // already closed", which used to surface as a bogus "Chat pipeline error".
+  let closed = false;
+  const upstream = new AbortController();
 
   return new ReadableStream<Uint8Array>({
+    cancel() {
+      closed = true;
+      upstream.abort(); // also stop paying for tokens nobody will read
+    },
     async start(controller) {
       function send(data: unknown) {
-        controller.enqueue(encoder.encode(sseFrame(data)));
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(sseFrame(data)));
+        } catch {
+          closed = true;
+        }
       }
 
       const turnStart = Date.now();
@@ -222,7 +236,7 @@ export function runChatPipeline(input: ChatPipelineInput): ReadableStream<Uint8A
         genStart = Date.now();
         let firstTokenAt: number | null = null;
 
-        for await (const delta of streamChatMessage({ model, system, messages, temperature, usageOut })) {
+        for await (const delta of streamChatMessage({ model, system, messages, temperature, usageOut, signal: upstream.signal })) {
           if (firstTokenAt === null) firstTokenAt = Date.now();
           fullText += delta;
           send({ type: "delta", text: delta });
@@ -262,10 +276,18 @@ export function runChatPipeline(input: ChatPipelineInput): ReadableStream<Uint8A
 
         send({ type: "done", escalate: false, reason: null, fullText, provider: "groq", metrics });
       } catch (err) {
+        if (closed) return; // client left mid-turn — nothing to report to anyone
         console.error("Chat pipeline error:", err);
         send({ type: "error", message: err instanceof Error ? err.message : "Unexpected error" });
       } finally {
-        controller.close();
+        if (!closed) {
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            /* already closed */
+          }
+        }
       }
     },
   });

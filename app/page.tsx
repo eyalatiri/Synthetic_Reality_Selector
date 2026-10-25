@@ -1,37 +1,69 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+
+const URL_ERRORS: Record<string, string> = {
+  suspended: "This account is disabled. Contact your workspace administrator.",
+  auth: "Sign-in with SSO didn't complete. Please try again.",
+};
+
+// Where to go after signing in. The decision (employee -> /experience,
+// admin -> role chooser) lives server-side in /auth/continue so it can't be
+// tampered with from the browser; we just forward any `?next=` deep link.
+function continueUrl() {
+  const next = new URLSearchParams(window.location.search).get("next");
+  return next ? `/auth/continue?next=${encodeURIComponent(next)}` : "/auth/continue";
+}
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  // Show errors handed back by the proxy / auth routes (?error=suspended).
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("error");
+    if (code && URL_ERRORS[code]) setError(URL_ERRORS[code]);
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
-    // TODO: replace with real auth once the backend is wired, e.g.:
-    // const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    // On success, read the role claim (employee/admin) and redirect straight
-    // to /experience or /admin instead of always going through the gateway.
-    setTimeout(() => {
-      router.push("/select-role");
-    }, 600);
+    const supabase = createSupabaseBrowserClient();
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+
+    if (signInError) {
+      // Same message for "no such user" and "wrong password" - don't reveal which emails exist.
+      setError(signInError.message === "Email not confirmed" ? signInError.message : "Incorrect email or password.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Full navigation (not router.push) so the new session cookie is sent and proxy.ts re-evaluates.
+    window.location.assign(continueUrl());
   }
 
-  function handleSsoSignIn() {
+  async function handleSsoSignIn() {
     setIsSubmitting(true);
-    // TODO: replace with Supabase Auth + Microsoft Entra ID OAuth provider, e.g.:
-    // await supabase.auth.signInWithOAuth({ provider: "azure" })
-    setTimeout(() => {
-      router.push("/select-role");
-    }, 600);
+    setError(null);
+
+    // Requires the Azure (Microsoft Entra ID) provider enabled in Supabase > Authentication > Providers.
+    const supabase = createSupabaseBrowserClient();
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: { scopes: "email", redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (oauthError) {
+      setError(oauthError.message);
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -53,6 +85,16 @@ export default function LoginPage() {
         </div>
 
         <div className="rounded-3xl border border-ink/10 bg-white/80 p-8 shadow-sm">
+          {error ? (
+            <div
+              role="alert"
+              className="mb-5 flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3.5 py-3 text-sm text-red-600"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          ) : null}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-ink">

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AdminPageHeader, AdminPrimaryButton, AdminSecondaryButton } from "@/components/admin/AdminPageHeader";
 import { AdminCard } from "@/components/admin/AdminCard";
+import { AvatarVideoUpload } from "@/components/admin/avatar/AvatarVideoUpload";
 import type { Avatar, OwnerType, BodyType, PublishState } from "@/lib/admin/types";
 
 const OWNER_TYPES: OwnerType[] = ["Organisation", "Individual"];
@@ -16,6 +17,7 @@ type FormState = {
   ownerType: OwnerType;
   bodyType: BodyType;
   imageUrl: string;
+  videoUrl: string | null;
   status: PublishState;
 };
 
@@ -25,6 +27,7 @@ const EMPTY_FORM: FormState = {
   ownerType: "Organisation",
   bodyType: "Half body",
   imageUrl: "",
+  videoUrl: null,
   status: "Private",
 };
 
@@ -37,6 +40,7 @@ export default function AvatarEditPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [videoProcessing, setVideoProcessing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +57,7 @@ export default function AvatarEditPage() {
           ownerType: data.ownerType,
           bodyType: data.bodyType,
           imageUrl: data.imageUrl ?? "",
+          videoUrl: data.videoUrl ?? null,
           status: data.status,
         });
       })
@@ -92,6 +97,8 @@ export default function AvatarEditPage() {
           ownerType: form.ownerType,
           bodyType: form.bodyType,
           imageUrl: form.imageUrl.trim() || null,
+          // null clears the video; the PATCH route accepts string | null.
+          videoUrl: form.videoUrl,
           status: form.status,
         }),
       });
@@ -186,6 +193,12 @@ export default function AvatarEditPage() {
               />
             </label>
 
+            <AvatarVideoUpload
+              value={form.videoUrl}
+              onChange={(url) => update("videoUrl", url)}
+              onProcessingChange={setVideoProcessing}
+            />
+
             <label className="block sm:w-1/2">
               <span className="mb-1.5 block text-sm font-medium text-stone-700">Status</span>
               <select
@@ -207,8 +220,8 @@ export default function AvatarEditPage() {
 
         <div className="mt-6 flex items-center justify-between">
           <AdminSecondaryButton onClick={() => router.push("/admin/avatars")}>Cancel</AdminSecondaryButton>
-          <AdminPrimaryButton onClick={handleSave} disabled={saving}>
-            {saving ? "Saving…" : "Save changes"}
+          <AdminPrimaryButton onClick={handleSave} disabled={saving || videoProcessing}>
+            {saving ? "Saving…" : videoProcessing ? "Processing video…" : "Save changes"}
           </AdminPrimaryButton>
         </div>
       </div>

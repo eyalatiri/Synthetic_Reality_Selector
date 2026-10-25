@@ -22,11 +22,18 @@ export type ConversationStatus = "Active" | "Resolved" | "Escalated";
 export type ConversationType = "Voice" | "Text";
 export type TestType = "Scenario" | "Regression" | "Smoke";
 export type TestStatus = "Pass" | "Running" | "Review" | "Fail";
+import type { UserRole, UserStatus } from "@/lib/auth/roles";
+export type { UserRole, UserStatus };
 
 export type Avatar = {
   id: string;
   name: string;
   imageUrl: string | null;
+  // LivePortrait-animated avatar video, generated once at creation time —
+  // see app/api/admin/avatars/create-video/route.ts and
+  // supabase/migrations/0005_avatar_video_url.sql. Null until an admin
+  // uploads a source video in the wizard's Basics step.
+  videoUrl: string | null;
   owner: string;
   ownerType: OwnerType;
   bodyType: BodyType;
@@ -102,6 +109,18 @@ export type Conversation = {
   durationSeconds: number | null;
 };
 
+export type UserProfile = {
+  id: string;
+  email: string;
+  fullName: string;
+  department: string;
+  role: UserRole;
+  status: UserStatus;
+  lastSignInAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TestCase = {
   id: string;
   name: string;
@@ -120,6 +139,7 @@ export type AvatarRow = {
   id: string;
   name: string;
   image_url: string | null;
+  video_url: string | null;
   owner: string;
   owner_type: OwnerType;
   body_type: BodyType;
@@ -187,6 +207,18 @@ export type ConversationRow = {
   duration_seconds: number | null;
 };
 
+export type UserRow = {
+  id: string;
+  email: string;
+  full_name: string;
+  department: string;
+  role: UserRole;
+  status: UserStatus;
+  last_sign_in_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type TestRow = {
   id: string;
   name: string;
@@ -206,6 +238,7 @@ export function toAvatarDTO(row: AvatarRow): Avatar {
     id: row.id,
     name: row.name,
     imageUrl: row.image_url,
+    videoUrl: row.video_url,
     owner: row.owner,
     ownerType: row.owner_type,
     bodyType: row.body_type,
@@ -292,5 +325,19 @@ export function toTestDTO(row: TestRow): TestCase {
     totalQuestions: row.total_questions,
     status: row.status,
     createdAt: row.created_at,
+  };
+}
+
+export function toUserDTO(row: UserRow): UserProfile {
+  return {
+    id: row.id,
+    email: row.email,
+    fullName: row.full_name,
+    department: row.department,
+    role: row.role,
+    status: row.status,
+    lastSignInAt: row.last_sign_in_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }

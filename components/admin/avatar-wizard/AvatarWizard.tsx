@@ -16,12 +16,21 @@ export function AvatarWizard() {
   const [data, setData] = useState(initialWizardData);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  // Lifted from StepAvatar so "Publish avatar" can be disabled while the
+  // LivePortrait video round trip (/api/admin/avatars/create-video) is
+  // still in flight — publishing mid-upload would create the avatar row
+  // with videoUrl still null, silently dropping the video.
+  const [videoProcessing, setVideoProcessing] = useState(false);
 
   const currentStep = wizardSteps[stepIndex];
   const isLastStep = stepIndex === wizardSteps.length - 1;
 
   function goNext() {
     if (isLastStep) {
+      if (videoProcessing) {
+        setPublishError("The avatar video is still processing — wait for it to finish before publishing.");
+        return;
+      }
       handlePublish();
       return;
     }
@@ -37,6 +46,10 @@ export function AvatarWizard() {
   }
 
   async function handlePublish() {
+    if (data.avatar.mode === "existing" && !data.avatar.existingAvatarId) {
+      setPublishError("Select an existing avatar, or switch to \"Create a new avatar\".");
+      return;
+    }
     setPublishing(true);
     setPublishError(null);
     try {
@@ -71,7 +84,11 @@ export function AvatarWizard() {
 
       <div className="mt-8">
         {currentStep.id === "avatar" ? (
-          <StepAvatar data={data.avatar} onChange={(avatar) => setData({ ...data, avatar })} />
+          <StepAvatar
+            data={data.avatar}
+            onChange={(avatar) => setData({ ...data, avatar })}
+            onVideoProcessingChange={setVideoProcessing}
+          />
         ) : null}
         {currentStep.id === "persona" ? (
           <StepPersona data={data.persona} onChange={(persona) => setData({ ...data, persona })} />
@@ -90,8 +107,8 @@ export function AvatarWizard() {
 
       <div className="mt-8 flex items-center justify-between">
         <AdminSecondaryButton onClick={goBack}>{stepIndex === 0 ? "Cancel" : "Back"}</AdminSecondaryButton>
-        <AdminPrimaryButton onClick={goNext} disabled={publishing}>
-          {isLastStep ? (publishing ? "Publishing…" : "Publish avatar") : "Next"}
+        <AdminPrimaryButton onClick={goNext} disabled={publishing || (isLastStep && videoProcessing)}>
+          {isLastStep ? (publishing ? "Publishing…" : videoProcessing ? "Processing video…" : "Publish avatar") : "Next"}
         </AdminPrimaryButton>
       </div>
     </>

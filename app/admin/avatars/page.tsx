@@ -75,14 +75,14 @@ export default function AvatarsIndexPage() {
                 <Tr key={avatar.id}>
                   <Td>
                     <Link
-                      href={`/admin/avatars/${avatar.id}/persona`}
+                      href={`/admin/avatars/${avatar.id}`}
                       className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10 font-serif text-lg font-semibold text-accent"
                     >
                       {avatar.name[0]}
                     </Link>
                   </Td>
                   <Td className="font-medium text-stone-900">
-                    <Link href={`/admin/avatars/${avatar.id}/persona`}>{avatar.name}</Link>
+                    <Link href={`/admin/avatars/${avatar.id}`}>{avatar.name}</Link>
                   </Td>
                   <Td>{avatar.owner}</Td>
                   <Td>{avatar.ownerType}</Td>

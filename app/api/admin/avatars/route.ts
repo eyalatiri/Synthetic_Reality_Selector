@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
         owner_type: ownerType,
         body_type: bodyType,
         image_url: typeof body.imageUrl === "string" ? body.imageUrl : null,
+        video_url: typeof body.videoUrl === "string" ? body.videoUrl : null, // ← ADD
         // Fixed default: "Draft" isn't a valid PublishState, so new rows
         // rendered with a red/danger badge instead of neutral.
         status: typeof body.status === "string" ? body.status : "Private",

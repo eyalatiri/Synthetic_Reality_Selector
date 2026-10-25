@@ -11,31 +11,72 @@ export async function POST(req: NextRequest) {
     const personaInput = asRecord(body.persona);
     const knowledgeInput = asRecord(body.knowledge);
 
-    const avatarName = avatarInput.name;
-    if (typeof avatarName !== "string" || !avatarName.trim()) {
-      return badRequest("`avatar.name` is required");
+    // avatar.mode ("existing" | "new") mirrors the toggle StepAvatar.tsx now
+    // has, same pattern as persona.mode / knowledge.mode below. Older
+    // callers that don't send `mode` at all fall back to "new" so this
+    // stays backwards compatible.
+    let avatarId: string;
+    // Hoisted: the persona/knowledge fallbacks below use it in BOTH modes
+    // (it was block-scoped inside the "new" branch, so reusing an existing
+    // avatar threw a ReferenceError / TS2304 here).
+    let avatarName = "";
+
+    if (avatarInput.mode === "existing") {
+      const existingAvatarId = avatarInput.existingAvatarId;
+      if (typeof existingAvatarId !== "string" || !existingAvatarId) {
+        return badRequest("`avatar.existingAvatarId` is required when avatar.mode is 'existing'");
+      }
+
+      const { data: existingAvatar, error: existingAvatarError } = await supabaseAdmin
+        .from("avatars")
+        .select("id, name")
+        .eq("id", existingAvatarId)
+        .maybeSingle();
+      if (existingAvatarError) throw existingAvatarError;
+      if (!existingAvatar) return badRequest(`Avatar ${existingAvatarId} not found`);
+
+      avatarId = existingAvatar.id as string;
+      avatarName = (existingAvatar.name as string) ?? "";
+      // No cleanup pushed here — we didn't create this avatar, so a
+      // failure later in this request must never delete it.
+    } else {
+      if (typeof avatarInput.name !== "string" || !avatarInput.name.trim()) {
+        return badRequest("`avatar.name` is required");
+      }
+      avatarName = avatarInput.name;
+
+      const { data: avatarRow, error: avatarError } = await supabaseAdmin
+        .from("avatars")
+        .insert({
+          name: avatarName,
+          owner: typeof avatarInput.owner === "string" ? avatarInput.owner : "",
+          owner_type: avatarInput.ownerType === "Individual" ? "Individual" : "Organisation",
+          body_type: ["Full body", "Half body", "Head only"].includes(avatarInput.bodyType as string)
+            ? avatarInput.bodyType
+            : "Half body",
+          // imagePreviewUrl is a browser-only blob: URL (URL.createObjectURL in
+          // StepAvatar) — dead as soon as the tab closes, so only persist real URLs.
+          image_url:
+            typeof avatarInput.imagePreviewUrl === "string" && /^https?:\/\//.test(avatarInput.imagePreviewUrl)
+              ? avatarInput.imagePreviewUrl
+              : null,
+          // Set by StepAvatar.tsx once /api/admin/avatars/create-video
+          // finishes (the uploaded source clip, already in Supabase
+          // Storage — see supabase/migrations/0005_avatar_video_url.sql).
+          // Null is valid here too: video is optional, an avatar can still
+          // publish with just a static image if no video was uploaded.
+          video_url: typeof avatarInput.videoUrl === "string" ? avatarInput.videoUrl : null,
+          status: typeof avatarInput.status === "string" ? avatarInput.status : "Private",
+        })
+        .select("id")
+        .single();
+
+      if (avatarError) throw avatarError;
+      avatarId = avatarRow.id as string;
+      cleanup.push(async () => {
+        await supabaseAdmin.from("avatars").delete().eq("id", avatarId);
+      });
     }
-
-    const { data: avatarRow, error: avatarError } = await supabaseAdmin
-      .from("avatars")
-      .insert({
-        name: avatarName,
-        owner: typeof avatarInput.owner === "string" ? avatarInput.owner : "",
-        owner_type: avatarInput.ownerType === "Individual" ? "Individual" : "Organisation",
-        body_type: ["Full body", "Half body", "Head only"].includes(avatarInput.bodyType as string)
-          ? avatarInput.bodyType
-          : "Half body",
-        image_url: typeof avatarInput.imagePreviewUrl === "string" ? avatarInput.imagePreviewUrl : null,
-        status: typeof avatarInput.status === "string" ? avatarInput.status : "Private",
-      })
-      .select("id")
-      .single();
-
-    if (avatarError) throw avatarError;
-    const avatarId = avatarRow.id as string;
-    cleanup.push(async () => {
-      await supabaseAdmin.from("avatars").delete().eq("id", avatarId);
-    });
 
     let personaId: string;
 

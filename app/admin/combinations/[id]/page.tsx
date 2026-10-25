@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AdminPageHeader, AdminPrimaryButton, AdminSecondaryButton } from "@/components/admin/AdminPageHeader";
-import { AdminCard } from "@/components/admin/AdminCard";
 import { WizardStepper } from "@/components/admin/avatar-wizard/WizardStepper";
 import { StepAvatar } from "@/components/admin/avatar-wizard/steps/StepAvatar";
+import { StepPersona } from "@/components/admin/avatar-wizard/steps/StepPersona";
 import { StepKnowledge } from "@/components/admin/avatar-wizard/steps/StepKnowledge";
-import { PersonaFieldsForm, type PersonaFieldsData } from "@/components/admin/avatar-wizard/steps/PersonaFieldsForm";
 import type { WizardData } from "@/components/admin/avatar-wizard/wizard-types";
 import type { ResolvedCombination } from "@/lib/admin/types";
 
@@ -26,9 +25,15 @@ export default function CombinationEditPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [stepIndex, setStepIndex] = useState(0);
+  // Both avatar and persona now default to mode "new", meaning "edit this
+  // combination's own avatar/persona fields in place" (the original
+  // behaviour). Switching either toggle to "existing" — same StepAvatar.tsx /
+  // StepPersona.tsx components the creation wizard uses — lets you re-point
+  // this combination at a different avatar or persona instead.
   const [avatarDraft, setAvatarDraft] = useState<WizardData["avatar"] | null>(null);
-  const [personaDraft, setPersonaDraft] = useState<PersonaFieldsData | null>(null);
+  const [personaDraft, setPersonaDraft] = useState<WizardData["persona"] | null>(null);
   const [knowledgeDraft, setKnowledgeDraft] = useState<WizardData["knowledge"] | null>(null);
+  const [videoProcessing, setVideoProcessing] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -44,7 +49,10 @@ export default function CombinationEditPage() {
         if (cancelled) return;
         setCombo(data);
         setAvatarDraft({
+          mode: "new",
+          existingAvatarId: null,
           imagePreviewUrl: data.avatar.imageUrl,
+          videoUrl: data.avatar.videoUrl,
           name: data.avatar.name,
           owner: data.avatar.owner,
           ownerType: data.avatar.ownerType,
@@ -52,11 +60,14 @@ export default function CombinationEditPage() {
           status: data.avatar.status,
         });
         setPersonaDraft({
+          mode: "new",
+          existingPersonaId: null,
           name: data.persona.name,
           type: data.persona.type,
           prompt: data.persona.prompt,
           qnaModel: data.persona.qnaModel,
           creativity: data.persona.creativity,
+          gender: data.persona.gender,
         });
         setKnowledgeDraft({
           mode: "existing",
@@ -95,6 +106,20 @@ export default function CombinationEditPage() {
 
   async function handleSave() {
     if (!combo || !avatarDraft || !personaDraft || !knowledgeDraft) return;
+
+    if (avatarDraft.mode === "existing" && !avatarDraft.existingAvatarId) {
+      setSaveError('Select an existing avatar, or switch to "Create a new avatar".');
+      return;
+    }
+    if (personaDraft.mode === "existing" && !personaDraft.existingPersonaId) {
+      setSaveError('Select an existing persona, or switch to "Create a new persona".');
+      return;
+    }
+    if (videoProcessing) {
+      setSaveError("The avatar video is still processing — wait for it to finish before saving.");
+      return;
+    }
+
     setSaving(true);
     setSaveError(null);
     try {
@@ -114,8 +139,13 @@ export default function CombinationEditPage() {
         knowledgeSourceIds = [...knowledgeDraft.selectedIds, created.id];
       }
 
-      const [avatarRes, personaRes, comboRes] = await Promise.all([
-        fetch(`/api/admin/avatars/${combo.avatar.id}`, {
+      // Avatar: either point this combination at a different existing
+      // avatar, or save this combination's own avatar's fields in place.
+      let nextAvatarId = combo.avatar.id;
+      if (avatarDraft.mode === "existing") {
+        nextAvatarId = avatarDraft.existingAvatarId as string;
+      } else {
+        const avatarRes = await fetch(`/api/admin/avatars/${combo.avatar.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -123,9 +153,19 @@ export default function CombinationEditPage() {
             owner: avatarDraft.owner,
             ownerType: avatarDraft.ownerType,
             bodyType: avatarDraft.bodyType,
+            imageUrl: avatarDraft.imagePreviewUrl,
+            videoUrl: avatarDraft.videoUrl,
           }),
-        }),
-        fetch(`/api/admin/personas/${combo.persona.id}`, {
+        });
+        if (!avatarRes.ok) throw new Error((await avatarRes.json()).error ?? "Failed to save avatar");
+      }
+
+      // Persona: same existing/new branch as the avatar above.
+      let nextPersonaId = combo.persona.id;
+      if (personaDraft.mode === "existing") {
+        nextPersonaId = personaDraft.existingPersonaId as string;
+      } else {
+        const personaRes = await fetch(`/api/admin/personas/${combo.persona.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -134,18 +174,18 @@ export default function CombinationEditPage() {
             prompt: personaDraft.prompt,
             qnaModel: personaDraft.qnaModel,
             creativity: personaDraft.creativity,
+            gender: personaDraft.gender,
           }),
-        }),
-        fetch(`/api/admin/combinations/${combo.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ knowledgeSourceIds }),
-        }),
-      ]);
+        });
+        if (!personaRes.ok) throw new Error((await personaRes.json()).error ?? "Failed to save persona");
+      }
 
-      if (!avatarRes.ok) throw new Error((await avatarRes.json()).error ?? "Failed to save avatar");
-      if (!personaRes.ok) throw new Error((await personaRes.json()).error ?? "Failed to save persona");
-      if (!comboRes.ok) throw new Error((await comboRes.json()).error ?? "Failed to save knowledge links");
+      const comboRes = await fetch(`/api/admin/combinations/${combo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarId: nextAvatarId, personaId: nextPersonaId, knowledgeSourceIds }),
+      });
+      if (!comboRes.ok) throw new Error((await comboRes.json()).error ?? "Failed to save changes");
 
       router.push("/admin");
     } catch (err) {
@@ -177,12 +217,10 @@ export default function CombinationEditPage() {
 
       <div className="mt-8">
         {EDIT_STEPS[stepIndex].id === "avatar" ? (
-          <StepAvatar data={avatarDraft} onChange={setAvatarDraft} />
+          <StepAvatar data={avatarDraft} onChange={setAvatarDraft} onVideoProcessingChange={setVideoProcessing} />
         ) : null}
         {EDIT_STEPS[stepIndex].id === "persona" ? (
-          <AdminCard>
-            <PersonaFieldsForm data={personaDraft} onChange={setPersonaDraft} />
-          </AdminCard>
+          <StepPersona data={personaDraft} onChange={setPersonaDraft} />
         ) : null}
         {EDIT_STEPS[stepIndex].id === "knowledge" ? (
           <StepKnowledge data={knowledgeDraft} onChange={setKnowledgeDraft} />
@@ -197,8 +235,8 @@ export default function CombinationEditPage() {
 
       <div className="mt-8 flex items-center justify-between">
         <AdminSecondaryButton onClick={goBack}>{stepIndex === 0 ? "Cancel" : "Back"}</AdminSecondaryButton>
-        <AdminPrimaryButton onClick={goNext} disabled={saving}>
-          {isLastStep ? (saving ? "Saving…" : "Save changes") : "Next"}
+        <AdminPrimaryButton onClick={goNext} disabled={saving || (isLastStep && videoProcessing)}>
+          {isLastStep ? (saving ? "Saving…" : videoProcessing ? "Processing video…" : "Save changes") : "Next"}
         </AdminPrimaryButton>
       </div>
     </>

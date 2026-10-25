@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import VoiceConversationScreen from "@/components/voice/VoiceConversationScreen";
 import { useChatStream } from "@/hooks/useChatStream";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
-import { useTextToSpeech, type TtsPersonaVoice } from "@/hooks/useTextToSpeech";
+import { useAvatarSpeech } from "@/hooks/useAvatarSpeech";
+import type { TtsPersonaVoice } from "@/hooks/useTextToSpeech";
+import { AvatarStage } from "@/components/avatar/AvatarStage";
 
 type ScreenProps = {
   brandName: string;
@@ -14,6 +16,14 @@ type ScreenProps = {
   /** "English" | "French" | "Arabic" - drives both TTS voice and STT language hint. */
   language?: string;
   voice?: TtsPersonaVoice;
+  /** Idle-loop video + whether MuseTalk answered /health when the conversation started. See app/api/conversations/route.ts. */
+  avatar?: {
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    videoUrl: string | null;
+    lipSync: boolean;
+  } | null;
 };
 
 // French function words/diacritics that essentially never appear in
@@ -97,6 +107,7 @@ export function ConversationChat({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         personaId,
+        avatarId,
         combinationId,
         conversationType: "Voice",
         creatorUser: "employee",
@@ -121,7 +132,7 @@ export function ConversationChat({
     return () => clearInterval(interval);
   }, [conversationId]);
 
-  const { messages, streamingText, isStreaming, escalated, send } = useChatStream(
+  const { messages, streamingText, isStreaming, escalated, send, error: chatError } = useChatStream(
     personaId
       ? { mode: "persisted", personaId, avatarId, combinationId, conversationId, language: screenProps?.language }
       : { mode: "preview", avatarName: "Avatar", personaOverride: {}, knowledgeSourceIds: [] }
@@ -163,8 +174,23 @@ export function ConversationChat({
     [conversationId]
   );
 
-  // ---- Text-to-speech: speak each finished assistant reply -------------
-  const { speak, stop: stopSpeaking, isSpeaking } = useTextToSpeech();
+  // ---- Speech out: TTS -> MuseTalk lip-sync -> avatar <video> ------------
+  // Falls back to plain TTS audio over the idle loop whenever lip-sync is
+  // unavailable (see hooks/useAvatarSpeech.ts).
+  const {
+    speak,
+    stop: stopSpeaking,
+    isSpeaking,
+    isGenerating,
+    activeClipUrl,
+    onClipEnded,
+    onClipError,
+    notice: speechNotice,
+    error: speechError,
+  } = useAvatarSpeech({
+    avatarId: screenProps?.avatar?.id ?? null,
+    lipSyncEnabled: Boolean(screenProps?.avatar?.lipSync && screenProps.avatar.videoUrl),
+  });
   const spokenCountRef = useRef(0);
 
   useEffect(() => {
@@ -199,7 +225,8 @@ export function ConversationChat({
         // the user may not be looking at the screen.
         const prompt = repeatPromptFor(activeLanguageRef.current);
         setRepeatPrompt(prompt);
-        speak(prompt, { ...(screenProps?.voice ?? {}), language: activeLanguageRef.current });
+        // Voice only: not worth a MuseTalk round trip for "please repeat".
+        speak(prompt, { ...(screenProps?.voice ?? {}), language: activeLanguageRef.current }, { lipSync: false });
         return;
       }
       setRepeatPrompt(null);
@@ -251,7 +278,15 @@ export function ConversationChat({
     lastAssistantMessage ||
     (screenProps ? `I'm listening — ask ${screenProps.assistantName} anything.` : "Connecting…");
 
-  const status = isSpeaking ? "speaking" : isStreaming ? "speaking" : isListening ? "listening" : "idle";
+  const status = isSpeaking
+    ? "speaking"
+    : isStreaming
+      ? "speaking"
+      : isGenerating
+        ? "thinking"
+        : isListening
+          ? "listening"
+          : "idle";
 
   async function handleEndSession() {
     micWantedRef.current = false;
@@ -289,6 +324,16 @@ export function ConversationChat({
 
   return (
     <>
+      {chatError && (
+        <div className="fixed bottom-16 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white shadow-lg">
+          The assistant couldn&apos;t answer: {chatError}
+        </div>
+      )}
+      {speechError && (
+        <div className="fixed bottom-28 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-neutral-800 px-4 py-2 text-sm text-white shadow-lg">
+          {speechError}
+        </div>
+      )}
       {sttError && (
         <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white shadow-lg">
           Mic error: {sttError}
@@ -308,6 +353,20 @@ export function ConversationChat({
         micActive={isListening}
         micSupported={sttSupported}
         onMicToggle={handleMicToggle}
+        avatarSlot={
+          screenProps?.avatar ? (
+            <AvatarStage
+              name={screenProps.avatar.name}
+              idleVideoUrl={screenProps.avatar.videoUrl}
+              posterUrl={screenProps.avatar.imageUrl}
+              clipUrl={activeClipUrl}
+              generating={isGenerating}
+              note={speechNotice}
+              onClipEnded={onClipEnded}
+              onClipError={onClipError}
+            />
+          ) : undefined
+        }
       />
     </>
   );

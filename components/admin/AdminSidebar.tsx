@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LogOut, MonitorPlay } from "lucide-react";
 import { adminNavItems, isNavItemActive } from "./nav-config";
 
 export function AdminSidebar() {
@@ -47,6 +48,34 @@ export function AdminSidebar() {
           );
         })}
       </nav>
+
+      {/* Admins can use both sides of the app: jump to the employee
+          experience, or sign out. */}
+      <div className="flex flex-col items-center gap-2">
+        <Link
+          href="/experience"
+          aria-label="Open employee experience"
+          className="group relative flex h-12 w-12 items-center justify-center rounded-2xl text-white/40 transition-colors hover:bg-white/5 hover:text-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+        >
+          <MonitorPlay className="h-5 w-5" strokeWidth={1.75} />
+          <span className="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+            Employee view
+          </span>
+        </Link>
+
+        <form action="/auth/signout" method="post">
+          <button
+            type="submit"
+            aria-label="Sign out"
+            className="group relative flex h-12 w-12 items-center justify-center rounded-2xl text-white/40 transition-colors hover:bg-white/5 hover:text-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+          >
+            <LogOut className="h-5 w-5" strokeWidth={1.75} />
+            <span className="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+              Sign out
+            </span>
+          </button>
+        </form>
+      </div>
     </aside>
   );
 }

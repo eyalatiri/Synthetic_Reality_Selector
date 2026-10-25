@@ -9,7 +9,20 @@ export type WizardKnowledgeFile = {
 
 export type WizardData = {
   avatar: {
+    // "existing" reuses an avatar already in the table (picked from the
+    // list StepAvatar.tsx fetches from /api/admin/avatars) — mirrors the
+    // existing/new toggle StepKnowledge.tsx and StepPersona.tsx already
+    // have. "new" is the original inline-form flow below.
+    mode: "existing" | "new";
+    // Set when mode is "existing"; the id of the chosen avatar row.
+    existingAvatarId: string | null;
     imagePreviewUrl: string | null;
+    // Set once /api/admin/avatars/create-video finishes (LivePortrait's
+    // returned, re-animated clip, stored in Supabase Storage — see
+    // supabase/migrations/0005_avatar_video_url.sql). Null until that
+    // upload completes; "Publish avatar" is disabled while it's null but a
+    // source video is selected, so a half-finished upload can't be published.
+    videoUrl: string | null;
     name: string;
     owner: string;
     ownerType: OwnerType;
@@ -44,7 +57,10 @@ export type WizardData = {
 
 export const initialWizardData: WizardData = {
   avatar: {
+    mode: "new",
+    existingAvatarId: null,
     imagePreviewUrl: null,
+    videoUrl: null,
     name: "",
     owner: "",
     ownerType: "Organisation",

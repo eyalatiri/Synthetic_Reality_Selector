@@ -15,9 +15,13 @@ import {
   Archive,
   Trash2,
   Rocket,
+  ShieldCheck,
+  UserRound,
+  UserX,
+  UserCheck,
   type LucideIcon,
 } from "lucide-react";
-import type { Avatar, Persona, KnowledgeSource, ResolvedCombination } from "@/lib/admin/types";
+import type { Avatar, Persona, KnowledgeSource, ResolvedCombination, UserProfile } from "@/lib/admin/types";
 
 
 type ActionItem = { label: string; icon: LucideIcon; onClick: () => void; destructive?: boolean };
@@ -230,8 +234,12 @@ function personaItems(persona: Persona, router: Router, onChanged: () => void, s
 
 function avatarItems(avatar: Avatar, router: Router, onChanged: () => void, setBusy: (b: boolean) => void): ActionItem[] {
   return [
-    { label: "View", icon: Eye, onClick: () => router.push(`/admin/avatars/${avatar.id}/persona`) },
-    { label: "Edit", icon: Pencil, onClick: () => router.push(`/admin/avatars/${avatar.id}/persona`) },
+    // There is no app/admin/avatars/[avatarId]/persona route anymore (that
+    // was the old persona editor pattern from the original recap) — the
+    // live page at this id is app/admin/avatars/[avatarId]/page.tsx, the
+    // plain avatar-fields editor. Linking to .../persona 404'd.
+    { label: "View", icon: Eye, onClick: () => router.push(`/admin/avatars/${avatar.id}`) },
+    { label: "Edit", icon: Pencil, onClick: () => router.push(`/admin/avatars/${avatar.id}`) },
     // Same reasoning as personaItems' Publish action: the avatars list had
     // no row actions at all, so an avatar could never leave "Draft" either.
     // Both this AND the linked persona need status "Published" before a
@@ -280,6 +288,61 @@ function avatarItems(avatar: Avatar, router: Router, onChanged: () => void, setB
   ];
 }
 
+function userItems(
+  user: UserProfile,
+  isSelf: boolean,
+  onEdit: (user: UserProfile) => void,
+  onChanged: () => void,
+  setBusy: (b: boolean) => void
+): ActionItem[] {
+  const patch = (body: Record<string, unknown>, failure: string) =>
+    withBusy(setBusy, async () => {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? failure);
+      onChanged();
+    });
+
+  const items: ActionItem[] = [{ label: "Edit", icon: Pencil, onClick: () => onEdit(user) }];
+
+  // Your own row only gets "Edit": the API also refuses self-demotion,
+  // self-suspension and self-deletion, so hiding them here is just UX.
+  if (!isSelf) {
+    items.push(
+      user.role === "admin"
+        ? { label: "Make employee", icon: UserRound, onClick: () => patch({ role: "employee" }, "Failed to change role") }
+        : { label: "Make admin", icon: ShieldCheck, onClick: () => patch({ role: "admin" }, "Failed to change role") },
+      user.status === "Active"
+        ? {
+            label: "Suspend",
+            icon: UserX,
+            onClick: () => {
+              if (!confirm(`Suspend ${user.fullName || user.email}? They'll be signed out and blocked immediately.`)) return;
+              patch({ status: "Suspended" }, "Failed to suspend user");
+            },
+          }
+        : { label: "Reactivate", icon: UserCheck, onClick: () => patch({ status: "Active" }, "Failed to reactivate user") },
+      {
+        label: "Delete",
+        icon: Trash2,
+        destructive: true,
+        onClick: () => {
+          if (!confirm(`Delete ${user.fullName || user.email}? Their account is removed permanently.`)) return;
+          withBusy(setBusy, async () => {
+            const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
+            if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Failed to delete user");
+            onChanged();
+          });
+        },
+      }
+    );
+  }
+  return items;
+}
+
 function knowledgeItems(
   source: KnowledgeSource,
   router: Router,
@@ -310,6 +373,15 @@ type AvatarVariantProps = { variant: "avatar"; avatar: Avatar; onChanged: () => 
 type KnowledgeVariantProps = { variant: "knowledge"; source: KnowledgeSource; onChanged: () => void };
 // Conversations/tests aren't wired to real actions yet — same stub behaviour
 
+type UserVariantProps = {
+  variant: "user";
+  user: UserProfile;
+  /** True when this row is the signed-in admin. */
+  isSelf: boolean;
+  onEdit: (user: UserProfile) => void;
+  onChanged: () => void;
+};
+
 type CombinationVariantProps = { variant: "combination"; combination: ResolvedCombination; onChanged: () => void };
 
 type ActionsMenuProps =
@@ -317,6 +389,7 @@ type ActionsMenuProps =
   | AvatarVariantProps
   | KnowledgeVariantProps
   | CombinationVariantProps
+  | UserVariantProps
   | StandardVariantProps;
 type StandardVariantProps = { variant?: "standard"; name: string };
 
@@ -346,6 +419,8 @@ export function ActionsMenu(props: ActionsMenuProps) {
           ? knowledgeItems(props.source, router, props.onChanged, setBusy)
           : props.variant === "combination"
             ? combinationItems(props.combination, router, props.onChanged, setBusy)
+            : props.variant === "user"
+            ? userItems(props.user, props.isSelf, props.onEdit, props.onChanged, setBusy)
             : [
                 { label: "View", icon: Eye, onClick: () => console.log("view", props.name) },
                 { label: "Versions", icon: History, onClick: () => console.log("versions", props.name) },

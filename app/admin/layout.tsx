@@ -1,7 +1,15 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { getSessionProfile } from "@/lib/auth/guards";
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
+export default async function AdminLayout({ children }: { children: ReactNode }) {
+  // proxy.ts already keeps non-admins out of /admin; this re-checks on the
+  // server so the panel stays protected even if the proxy matcher changes.
+  const session = await getSessionProfile();
+  if (!session) redirect("/");
+  if (session.role !== "admin") redirect("/experience");
+
   return (
     <div className="flex min-h-screen bg-panel">
       <AdminSidebar />
