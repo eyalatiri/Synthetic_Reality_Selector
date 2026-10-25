@@ -1,303 +1,317 @@
-# Avatar Chatbot — PwC Internal Digital Human Platform
+<div align="center">
 
-A Next.js application that lets employees have voice or text conversations
-with AI-powered digital human avatars. Each avatar is backed by a
-configurable persona (name, role, tone, voice, knowledge base) and a RAG
-pipeline over internal documents. Admins build and publish avatars through a
-step-by-step wizard; employees pick an avatar and talk to it via text or
-voice.
+# PwC Tunisia · AI Avatar Assistant
 
----
+**A voice-first, multilingual AI avatar that answers employees' questions from the firm's own knowledge, with a full admin studio to build, govern and test every avatar.**
 
-## Tech Stack
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind-v4-38bdf8?logo=tailwindcss&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20pgvector-3ecf8e?logo=supabase&logoColor=white)
+![Languages](https://img.shields.io/badge/Languages-EN%20%C2%B7%20FR%20%C2%B7%20AR%20(Darija)-ff6d00)
 
-| Layer                | Technology                                                |
-|----------------------|------------------------------------------------------------|
-| Framework            | Next.js 16 (App Router, Route Handlers)                    |
-| UI                   | React 19, Tailwind CSS 4, Framer Motion, Lucide icons       |
-| Language             | TypeScript                                                  |
-| Database             | Supabase (Postgres + pgvector)                              |
-| Chat LLM             | Anthropic Claude — Opus / Sonnet / Haiku (via internal gateway, AWS Bedrock route) |
-| Embeddings           | Azure OpenAI `text-embedding-3-small`                       |
-| Speech-to-text       | Whisper (`openai.global.whisper-1`)                         |
-| Text-to-speech       | `gpt-4o-mini-tts`                                           |
-| LLM Gateway          | Internal PwC shared GenAI service (LiteLLM-based proxy)     |
-| Document ingestion   | `pdf-parse`, `unpdf`, `mammoth` (.docx), `@mozilla/readability` + `jsdom` (web pages) |
-| Realtime transport   | `ws` (used internally by the ingestion/utility layer)       |
+</div>
 
 ---
 
-## Requirements
+## 🎬 Demo
 
-- **Node.js 20+**
-- **npm** (or a compatible package manager)
-- A **Supabase** project (Postgres with the `pgvector` extension available)
-- An API key for the internal PwC GenAI gateway, with access to:
-  - Chat completions (Anthropic Claude models via Bedrock route)
-  - Embeddings (Azure OpenAI)
-  - Audio transcription (Whisper)
-  - Audio speech / TTS (`gpt-4o-mini-tts`)
+<!--
+  HOW TO ADD YOUR VIDEO (pick one):
+
+  A) Upload directly to GitHub (best: plays inline)
+     Edit this README on github.com, drag your .mp4 (<100 MB) into the editor.
+     GitHub inserts a https://github.com/user-attachments/... link.
+     Paste that link on its own line below and delete the placeholder.
+
+  B) YouTube / Loom thumbnail link
+     [![Watch the demo](docs/media/demo-thumbnail.png)](https://youtu.be/YOUR_VIDEO_ID)
+-->
+
+> 📹 **Demo video coming soon.** *(Replace this block with your video, see the comment above.)*
+
+<!-- Paste the video link here -->
+
+| Employee experience | Admin studio |
+|---|---|
+| ![Employee experience](docs/media/experience.png) | ![Admin studio](docs/media/admin.png) |
+| *Talking to an avatar by voice* | *Building an avatar, persona and knowledge base* |
+
+> Put screenshots in `docs/media/`. Until then the images above will show as broken, so remove the table if you don't want it.
 
 ---
 
-## Project Structure
+## Table of contents
 
-```
-avatar-chatbot/
-├── app/                               # Next.js App Router
-│   ├── layout.tsx, page.tsx, globals.css
-│   ├── select-role/page.tsx           # Role selection screen
-│   ├── experience/page.tsx            # Avatar picker screen
-│   ├── conversation/page.tsx          # Live conversation screen (voice/text)
-│   │
-│   ├── admin/                         # Admin dashboard
-│   │   ├── page.tsx, layout.tsx
-│   │   ├── avatars/                   # Avatar list + creation wizard
-│   │   │   ├── page.tsx, new/page.tsx, add/page.tsx
-│   │   │   └── [avatarId]/page.tsx
-│   │   ├── personas/                  # Persona list + editor
-│   │   │   ├── page.tsx
-│   │   │   └── [personaId]/page.tsx
-│   │   ├── knowledge/                 # Knowledge source management
-│   │   │   ├── page.tsx
-│   │   │   └── [knowledgeId]/page.tsx
-│   │   ├── combinations/[id]/page.tsx
-│   │   ├── conversations/page.tsx     # Conversation history/logs
-│   │   ├── testing/page.tsx
-│   │   └── settings/page.tsx
-│   │
-│   └── api/                           # Route Handlers
-│       ├── chat/route.ts              # RAG + LLM streaming endpoint (SSE)
-│       ├── tts/route.ts               # Text-to-speech endpoint
-│       ├── conversations/
-│       │   ├── route.ts               # Create a conversation session
-│       │   └── [id]/
-│       │       ├── end/route.ts
-│       │       └── messages/route.ts
-│       ├── experience/combinations/route.ts
-│       └── admin/
-│           ├── avatars/
-│           │   ├── route.ts, [id]/route.ts
-│           │   └── publish/route.ts   # Wizard "Publish" action
-│           ├── personas/
-│           │   ├── route.ts
-│           │   └── [id]/route.ts
-│           ├── knowledge/
-│           │   ├── route.ts
-│           │   └── [id]/
-│           │       ├── route.ts, urls/route.ts, ingest/route.ts
-│           │       └── files/route.ts, files/[fileId]/route.ts
-│           ├── combinations/
-│           │   ├── route.ts, [id]/route.ts
-│           ├── conversations/route.ts
-│           └── tests/route.ts
-│
-├── components/
-│   ├── chat/ConversationChat.tsx      # Wires STT + chat stream + TTS together
-│   ├── voice/VoiceConversationScreen.tsx  # Voice UI (mic, transcript, avatar video)
-│   ├── admin/
-│   │   ├── AdminSidebar.tsx, AdminCard.tsx, AdminPageHeader.tsx, nav-config.ts
-│   │   ├── avatar-wizard/
-│   │   │   ├── AvatarWizard.tsx, WizardStepper.tsx, wizard-types.ts
-│   │   │   └── steps/
-│   │   │       ├── StepAvatar.tsx, StepPersona.tsx, PersonaFieldsForm.tsx
-│   │   │       ├── StepKnowledge.tsx, StepTest.tsx
-│   │   ├── persona/PersonaEditor.tsx
-│   │   ├── knowledge/KnowledgeFolderCard.tsx, KnowledgeFolderModal.tsx
-│   │   └── table/Table.tsx, ActionsMenu.tsx
-│   └── home/
-│       ├── Hero.tsx, Navbar.tsx, Footer.tsx, AvatarPicker.tsx, FeaturesSection.tsx
-│       └── intro/                     # Animated landing intro sequence
-│           ├── IntroSequence.tsx, SceneReception.tsx, SceneEntrance.tsx
-│           ├── SceneExterior.tsx, SceneAvatar.tsx, FloatingParticles.tsx
-│
-├── hooks/
-│   ├── useChatStream.ts               # Consumes /api/chat SSE stream
-│   ├── useSpeechToText.ts             # Browser mic capture (Web Speech API)
-│   └── useTextToSpeech.ts             # Calls /api/tts, plays back audio
-│
-├── lib/
-│   ├── admin/
-│   │   ├── types.ts                   # DTO + Supabase row types + mappers
-│   │   ├── api-utils.ts               # badRequest/notFound/serverError/asRecord
-│   │   └── mock-data.ts               # Static picklists (QNA_MODELS, etc.)
-│   │
-│   ├── llm/
-│   │   ├── chatClient.ts              # Streams Chat Completions (SSE)
-│   │   ├── sttClient.ts               # Whisper transcription client
-│   │   ├── ttsClient.ts               # gpt-4o-mini-tts synthesis client
-│   │   ├── models.ts                  # Persona tier -> real model ID mapping
-│   │   ├── systemPrompt.ts            # Builds system prompt from persona + RAG context
-│   │   ├── chatPipeline.ts            # retrieval -> prompt -> LLM -> logging -> SSE
-│   │   ├── resolveContext.ts          # Resolves persona/avatar/knowledge from IDs
-│   │   └── metrics.ts                 # Per-turn latency/token metrics
-│   │
-│   ├── ingestion/                     # RAG knowledge-base pipeline
-│   │   ├── pipeline.ts                # fetch -> extract -> chunk -> embed -> store
-│   │   ├── fetchUrl.ts, extract.ts, chunk.ts
-│   │   ├── embed.ts                   # Azure OpenAI embeddings call
-│   │   └── retrieve.ts                # pgvector similarity search
-│   │
-│   └── supabase/admin.ts              # Supabase service-role client
-│
-├── supabase/
-│   └── migrations/
-│       └── 0001_init.sql              # Full baseline schema (single source of truth)
-│
-├── public/                            # Static assets
-├── .env.local                         # Local secrets (not committed)
-├── next.config.ts, tsconfig.json, package.json
-└── README.md
+- [What it is](#what-it-is)
+- [Key features](#key-features)
+- [How it works](#how-it-works)
+- [Tech stack](#tech-stack)
+- [Data model](#data-model)
+- [Roles and access control](#roles-and-access-control)
+- [Getting started](#getting-started)
+- [Environment variables](#environment-variables)
+- [Project structure](#project-structure)
+- [Known limitations](#known-limitations)
+- [Roadmap](#roadmap)
+- [Author](#author)
+
+---
+
+## What it is
+
+Employees at PwC Tunisia lose time hunting for answers across policies, procedures and internal documents. This project replaces that search with a **conversation**: an employee picks an avatar, speaks a question in **English, French or Tunisian Arabic**, and the avatar answers out loud, in its own voice and persona, grounded in documents the firm has approved.
+
+It has two sides:
+
+- **Employee experience** (`/experience`, `/conversation`): a cinematic landing page and a real-time voice conversation screen.
+- **Admin studio** (`/admin`): where administrators create avatars, define personas and guardrails, upload knowledge, review conversations, run test suites and manage users.
+
+Answers are **retrieval-augmented**. The assistant answers from the knowledge sources attached to the avatar, and escalates when it can't.
+
+---
+
+## Key features
+
+### 🗣️ For employees
+- **Voice-first conversation**: speak naturally, hear the answer, with a live transcript.
+- **Three languages**: English, French and Arabic, with Tunisian (Darija) voices that code-switch with French the way people actually speak.
+- **Lip-synced avatar video** generated per reply (MuseTalk).
+- **Grounded answers** from the firm's own documents, with graceful escalation when the knowledge base has no answer.
+- **Text fallback**: type instead of speaking at any point.
+
+### 🛠️ For administrators
+- **Avatar management**: appearance, voice and scene, with draft/active status.
+- **Persona editor**: role, department, expertise, communication style and **guardrails** (forbidden topics, escalation instructions), with a live behaviour preview.
+- **Avatar combinations**: pair any avatar with any persona and a set of knowledge sources.
+- **Knowledge center**: upload PDF, DOCX, TXT, MD and CSV files or ingest URLs into folders ("knowledge sources"). Documents are chunked, embedded and indexed automatically.
+- **Conversation center**: review every session, its transcript, duration, language and escalation status.
+- **Testing lab**: run question sets against an avatar and review pass/fail.
+- **User management**: create users, assign **Employee** or **Administrator** roles, suspend or delete accounts.
+
+---
+
+## How it works
+
+```mermaid
+flowchart LR
+    U([Employee]) -- voice --> MIC[Browser mic<br/>MediaRecorder + silence detection]
+    MIC -- audio segment --> STT["/api/stt<br/>Groq Whisper large-v3-turbo"]
+    STT -- text --> CHAT["/api/chat"]
+
+    subgraph RAG [Retrieval-augmented generation]
+      CHAT --> RET[Hybrid search<br/>vector + full-text, RRF]
+      RET <--> DB[(Supabase<br/>Postgres + pgvector)]
+      RET --> LLM[LLM via Groq<br/>persona + guardrails + context]
+    end
+
+    LLM -- streamed reply --> UI[Conversation UI]
+    LLM -- reply text --> TTS["/api/tts<br/>Azure / Edge neural voices"]
+    TTS -- audio --> LIP["/api/avatar/lip-sync<br/>MuseTalk on GPU"]
+    LIP -- talking-head video --> UI
+    TTS -- audio --> UI
+    UI --> U
 ```
 
----
+**One conversation turn**
 
-## Environment Variables
+1. **Listen.** The browser records the mic and cuts a segment after a pause in speech (RMS-based silence detection).
+2. **Transcribe.** The segment goes to Whisper with a language hint, which gives much better French and Arabic accuracy than the browser's built-in speech API.
+3. **Retrieve.** The question is embedded (BAAI/bge-m3, 1024 dimensions) and run through **hybrid search**: pgvector similarity plus French full-text search, fused with Reciprocal Rank Fusion. Search is scoped in SQL to the knowledge sources linked to the active persona, so an avatar can never leak another avatar's documents.
+4. **Generate.** A system prompt is built from the persona (role, tone, guardrails, escalation rules) and a **language lock**, so the reply stays in the language the user is speaking. Retrieval confidence is measured, and low-confidence turns can trigger escalation.
+5. **Speak.** The reply is converted to speech with a language- and gender-matched neural voice (`ar-TN-*` for Tunisian Arabic).
+6. **Animate.** The audio is sent to a MuseTalk service that returns a lip-synced avatar video, which plays alongside the transcript.
 
-Create a `.env.local` file in the project root:
-
-```env
-# --- Supabase ---
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-# --- Internal GenAI Gateway ---
-# Single endpoint + key used for chat, embeddings, STT, and TTS. The
-# gateway routes by the `model` string in each request body.
-AZURE_OPENAI_ENDPOINT=https://genai-sharedservice-emea.pwcinternal.com
-AZURE_OPENAI_API_KEY=your-gateway-api-key
-
-# --- Optional: override individual model tiers without touching code ---
-# CHAT_MODEL_QUALITY=bedrock.anthropic.claude-opus-4-5
-# CHAT_MODEL_BALANCED=bedrock.anthropic.claude-sonnet-4-5
-# CHAT_MODEL_FAST=bedrock.anthropic.claude-haiku-4-5
-# STT_MODEL=openai.global.whisper-1
-# TTS_MODEL=openai.gpt-4o-mini-tts
-# TTS_VOICE_FEMALE=nova
-# TTS_VOICE_MALE=onyx
-
-# --- Optional: embeddings tuning ---
-# AZURE_OPENAI_EMBEDDING_MODEL=azure.text-embedding-3-small
-# AZURE_OPENAI_EMBEDDING_DIMENSIONS=512
-```
-
-**Do not commit `.env.local`.**
+Every turn is logged to `conversation_messages` with retrieval metrics, so admins can audit quality.
 
 ---
 
-## Models Used
+## Tech stack
 
-| Purpose        | Model                                   | Notes                                      |
-|-----------------|------------------------------------------|---------------------------------------------|
-| Chat — Quality tier  | `bedrock.anthropic.claude-opus-4-5`   | Persona `qna_model = "Claude Opus"`         |
-| Chat — Balanced tier | `bedrock.anthropic.claude-sonnet-4-5` | Persona `qna_model = "Claude Sonnet"` (default) |
-| Chat — Fast tier     | `bedrock.anthropic.claude-haiku-4-5`  | Persona `qna_model = "Claude Haiku"`        |
-| Embeddings           | `azure.text-embedding-3-small`        | 512 dimensions, used for RAG vector search  |
-| Speech-to-text (STT) | `openai.global.whisper-1`             | Free tier on the gateway                    |
-| Text-to-speech (TTS) | `openai.gpt-4o-mini-tts`              | Voice picked per persona: `nova` (female) / `onyx` (male) |
+| Layer | Technology |
+|---|---|
+| **Frontend + backend** | Next.js 16 (App Router, API Routes), React, TypeScript |
+| **Styling / motion** | Tailwind CSS v4, Framer Motion, lucide-react |
+| **Database** | Supabase: Postgres with **pgvector** and full-text search |
+| **Auth** | Supabase Auth (email and password, optional Microsoft Entra SSO), role-based access via `proxy.ts` |
+| **LLM (chat)** | Groq-hosted open models (`gpt-oss-120b` / `gpt-oss-20b`), selectable per persona |
+| **Speech-to-text** | Groq Whisper `large-v3-turbo` |
+| **Text-to-speech** | Azure Speech or Microsoft Edge neural voices (EN / FR / `ar-TN`), with automatic fallback |
+| **Embeddings** | `BAAI/bge-m3` (1024-d, multilingual) via Cloudflare Workers AI or Hugging Face |
+| **Lip-sync avatar** | MuseTalk served from a GPU notebook, tunnelled with ngrok |
+| **Document ingestion** | `unpdf` (PDF), `mammoth` (DOCX), plain-text loaders, custom chunker |
 
-All models are routed through the internal GenAI gateway using a single
-`AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_API_KEY` pair — the gateway
-dispatches to the correct upstream provider (Azure, OpenAI, AWS Bedrock)
-based on the `model` string sent in each request.
+**Design note:** the stack is deliberately built on **free-tier and open components** (Groq, Cloudflare, Edge TTS, MuseTalk), so it can be demoed and iterated on at near-zero cost. Each provider sits behind a small interface (`lib/llm`, `lib/ingestion`, `lib/musetalk`), so swapping one for a paid or on-prem alternative is a contained change.
 
 ---
 
-## Database Setup
-
-The full schema lives in a single migration:
+## Data model
 
 ```
-supabase/migrations/0001_init.sql
+avatars ──┐
+          ├── avatar_combinations ──► knowledge_sources ──► knowledge_files ──► knowledge_chunks (vector + tsvector)
+personas ─┘            │
+                       ▼
+                 conversations ──► conversation_messages
+                       │
+                     tests
+
+auth.users ──► profiles (role: employee | admin, status: Active | Suspended)
 ```
 
-Run it once against a fresh Supabase project (SQL editor or CLI). It creates:
-
-- `avatars` — avatar identity (name, image, owner, body type, publish status)
-- `personas` — persona configuration (prompt, Q&A model tier, creativity,
-  role/department, **gender** for TTS voice selection)
-- `knowledge_sources` / `knowledge_files` / `knowledge_chunks` — RAG
-  document storage and pgvector embeddings
-- `avatar_combinations` — links an avatar + persona + set of knowledge
-  sources into a publishable combination
-- `conversations` / `conversation_messages` — session and transcript logging
-- `tests` — test-run tracking (Scenario/Regression/Smoke)
-- `profiles` — links to Supabase `auth.users`, with an `employee`/`admin`
-  role enum
-
-The migration also sets up required Postgres extensions (`pgcrypto` for
-UUID generation, `vector` for embeddings), the `user_role` enum, and
-indexes on every foreign key + the `ivfflat` vector index needed for
-performant similarity search.
+- **avatars**: name, image/video, owner, body type, status.
+- **personas**: role, prompt, QnA model, creativity, status, version, department, gender.
+- **avatar_combinations**: an avatar + a persona + the knowledge sources it may draw from.
+- **knowledge_sources / files / chunks**: folders, uploaded files, and the embedded chunks used for retrieval.
+- **conversations / conversation_messages**: sessions and their full transcripts, with language, duration and escalation status.
+- **profiles**: one row per user, extending `auth.users` with role and status.
 
 ---
 
-## Getting Started
+## Roles and access control
 
+| Role | After sign-in | Can open |
+|---|---|---|
+| **Employee** | Straight to `/experience` | `/experience`, `/conversation` |
+| **Administrator** | `/select-role` (choose experience or admin) | Everything, including `/admin/**` |
+| **Suspended** | Back to sign-in | Nothing, effective immediately |
+
+Access is enforced in **one place**: `proxy.ts` (Next.js 16's middleware). It checks the session and reads role and status from `profiles` on every request, covering both pages and `/api/admin/*`. Admin-sensitive routes **re-check** server-side as defence in depth. In the database:
+
+- Row-level security lets users read only **their own** profile; all writes go through the service-role admin API.
+- New users are always created as `employee`. Roles are never read from user-editable metadata.
+- A trigger prevents deleting, demoting or suspending the **last active admin**.
+
+---
+
+## Getting started
+
+### Prerequisites
+- Node.js 20+ (developed on v24)
+- A [Supabase](https://supabase.com) project (with the `vector` extension enabled)
+- A free [Groq](https://console.groq.com) API key
+- *(Optional)* A Cloudflare Workers AI token for embeddings, and a MuseTalk endpoint for lip-sync
+
+### 1. Clone and install
 ```bash
-# 1. Install dependencies
+git clone https://github.com/<your-username>/<your-repo>.git
+cd <your-repo>
 npm install
+```
 
-# 2. Apply the database schema (Supabase SQL editor or CLI)
-#    Run supabase/migrations/0001_init.sql
+### 2. Configure environment
+```bash
+cp .env.example .env.local   # then fill in the values, see the table below
+```
 
-# 3. Create .env.local (see Environment Variables above)
+### 3. Set up the database
+Apply the SQL migrations in `supabase/migrations/` **in order** via the Supabase SQL Editor (or the Supabase CLI).
 
-# 4. Run the dev server
+<!-- TODO: add the earlier schema/migration files (tables, pgvector, match_knowledge_chunks) to supabase/migrations/ so a fresh clone can be fully provisioned. -->
+
+### 4. Create your first administrator
+1. In Supabase, go to **Authentication → Users → Add user**, enter an email and password, and tick **Auto Confirm User**.
+2. Promote that user in the SQL Editor:
+   ```sql
+   update public.profiles
+   set role = 'admin', full_name = 'Your Name'
+   where lower(email) = lower('you@company.com');
+   ```
+3. Also **disable public sign-ups** under Authentication → Providers → Email, so only admins can create accounts.
+
+### 5. Run
+```bash
 npm run dev
 ```
+Open <http://localhost:3000> and sign in. Administrators then land on the role chooser, and employees go straight to the experience.
 
-Open [http://localhost:3000](http://localhost:3000).
+> **Windows tip:** if routes 404 or assets look stale after pulling changes, stop the server, delete the `.next` folder and restart.
 
-### Other scripts
+---
 
-```bash
-npm run build       # Production build
-npm run start        # Run the production build
-npm run lint          # Lint the codebase
-npm run dev:https     # Dev server over HTTPS (needed for mic access on some setups)
+## Environment variables
+
+Create `.env.local` (never commit it).
+
+| Variable | Required | Purpose |
+|---|:---:|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Public anon key (used with RLS and sessions) |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | **Server only**: admin API, ingestion, role lookups |
+| `GROQ_API_KEY` | ✅ | Chat completions and Whisper speech-to-text |
+| `CHAT_MODEL_QUALITY` / `_BALANCED` / `_FAST` | – | Override the model behind each persona tier |
+| `STT_MODEL` | – | Defaults to `whisper-large-v3-turbo` |
+| `EMBEDDING_PROVIDER` | – | `cloudflare` or `huggingface` (auto-detected if unset) |
+| `CF_ACCOUNT_ID`, `CF_API_TOKEN` | – | Cloudflare Workers AI embeddings (free tier) |
+| `HF_API_KEY` | – | Hugging Face embeddings alternative |
+| `TTS_PROVIDER` | – | `azure`, `edge` or `google` (default: auto with fallback) |
+| `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | – | Azure Speech, if used |
+| `TTS_VOICE_{EN,FR,AR}_{FEMALE,MALE}` | – | Override the default voice per language and gender |
+| `KAGGLE_MUSETALK_URL` | – | Public URL of the MuseTalk lip-sync service. Without it, the app runs voice-only. |
+
+> ⚠️ `SUPABASE_SERVICE_ROLE_KEY` bypasses all row-level security. Keep it server-side and out of version control.
+
+---
+
+## Project structure
+
+```
+app/
+  page.tsx                  Sign-in
+  select-role/              Admin-only chooser (experience or admin)
+  experience/               Landing page and avatar picker
+  conversation/             Real-time voice conversation
+  admin/                    Avatars · Personas · Knowledge · Conversations · Testing · Users · Settings
+  auth/                     continue · callback · signout
+  api/
+    chat/  stt/  tts/       Conversation pipeline
+    avatar/                 Lip-sync and status
+    conversations/          Session lifecycle
+    admin/                  CRUD for every admin resource, incl. users
+components/
+  admin/  home/  voice/  chat/
+hooks/                      useSpeechToText · useTextToSpeech · useChatStream
+lib/
+  llm/                      Chat client, system prompt, pipeline, metrics, STT/TTS
+  ingestion/                Extract → chunk → embed → retrieve
+  musetalk/                 Lip-sync client
+  auth/                     Roles and server guards
+  supabase/                 Server, browser and service-role clients
+proxy.ts                    Route-level access control
+supabase/migrations/        SQL migrations
 ```
 
 ---
 
-## Core Flows
+## Known limitations
 
-**Employee — talking to an avatar**
-1. `/select-role` → `/experience` → pick an avatar → `/conversation`
-2. `ConversationChat.tsx` starts a session (`POST /api/conversations`),
-   which resolves the persona's `gender` into a TTS voice and returns
-   avatar/persona display info.
-3. Each turn: `useChatStream` streams a reply from `POST /api/chat`
-   (RAG retrieval → system prompt → Claude → SSE deltas); `useTextToSpeech`
-   sends the finished reply to `POST /api/tts` and plays back the audio.
-4. Voice input (optional) is captured via `useSpeechToText` (browser Web
-   Speech API) and sent as a normal chat message once finalized.
-
-**Admin — building an avatar**
-1. `/admin/avatars/new` launches the wizard (`AvatarWizard.tsx`).
-2. Steps: avatar identity → persona (existing or new, incl. gender) →
-   knowledge sources → live test chat (`StepTest.tsx`, calls `/api/chat`
-   in preview mode with an in-memory persona draft).
-3. Publishing (`POST /api/admin/avatars/publish`) creates the avatar,
-   persona, knowledge source(s), and an `avatar_combinations` row in one
-   transaction-like flow (with manual rollback on failure).
+- **Latency.** A turn chains STT → retrieval → LLM → TTS → lip-sync, and lip-sync dominates on a free GPU notebook. Text and audio play immediately while video catches up.
+- **Darija transcription.** Whisper handles Tunisian Arabic reasonably but writes it in Modern Standard Arabic script.
+- **Free-tier dependencies.** Edge TTS is unofficial and may break, Groq and Cloudflare have daily quotas, and the Kaggle/ngrok MuseTalk host is not production-grade. Providers are isolated behind small interfaces for this reason.
+- **Passwords.** Admins set temporary passwords. There is no self-service "forgot password" flow yet.
 
 ---
 
-## RAG Pipeline
+## Roadmap
 
-`lib/ingestion/pipeline.ts` handles turning uploaded files or URLs into
-searchable knowledge:
-1. **Fetch** — download the file or scrape the URL (`fetchUrl.ts`, using
-   `@mozilla/readability` + `jsdom` for clean article extraction).
-2. **Extract** — pull raw text from PDFs (`pdf-parse` / `unpdf`) or `.docx`
-   files (`mammoth`).
-3. **Chunk** — split into overlapping text chunks (`chunk.ts`).
-4. **Embed** — call the gateway's embeddings endpoint (`embed.ts`).
-5. **Store** — persist chunks + vectors into `knowledge_chunks`.
+- [ ] Self-service password reset and forced change on first login
+- [ ] Production lip-sync hosting (dedicated GPU) and streaming video
+- [ ] Streaming STT for live partial transcripts
+- [ ] Per-avatar analytics dashboard (resolution rate, escalations, top questions)
+- [ ] Answer citations (show which document a reply came from)
+- [ ] Microsoft Entra ID SSO for all employees
+- [ ] Automated evaluation runs in the Testing lab on every knowledge update
 
-At chat time, `chatPipeline.ts` runs similarity search across every
-knowledge source attached to the active persona in parallel, merges and
-re-ranks the results, and injects the top matches into the system prompt
-built by `systemPrompt.ts`.
+---
+
+## Author
+
+Built by **Eya Latiri** as part of an end-of-studies internship at **PwC Tunisia** (2026).
+
+<!-- Add: LinkedIn · email · university -->
+
+---
+
+<div align="center">
+<sub>© 2026 · Internal prototype · Add a LICENSE file before making the repo public</sub>
+</div>
