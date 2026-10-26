@@ -1,3 +1,5 @@
+
+
 <div align="center">
 
 # PwC Tunisia · AI Avatar Assistant
@@ -60,7 +62,7 @@
 
 ## What it is
 
-Employees at PwC Tunisia lose time hunting for answers across policies, procedures and internal documents. This project replaces that search with a **conversation**: an employee picks an avatar, speaks a question in **English, French or Tunisian Arabic**, and the avatar answers out loud, in its own voice and persona, grounded in documents the firm has approved.
+Employees at PwC Tunisia lose time hunting for answers across policies, procedures and internal documents. This project replaces that search with a **conversation**: an employee picks an avatar, speaks a question in **English, French or Arabic**, and the avatar answers out loud, in its own voice and persona, grounded in documents the firm has approved.
 
 It has two sides:
 
@@ -75,7 +77,7 @@ Answers are **retrieval-augmented**. The assistant answers from the knowledge so
 
 ### 🗣️ For employees
 - **Voice-first conversation**: speak naturally, hear the answer, with a live transcript.
-- **Three languages**: English, French and Arabic, with Tunisian (Darija) voices that code-switch with French the way people actually speak.
+- **Three languages**: English, French and Arabic voices that code-switch with French the way people actually speak.
 - **Lip-synced avatar video** generated per reply (MuseTalk).
 - **Grounded answers** from the firm's own documents, with graceful escalation when the knowledge base has no answer.
 - **Text fallback**: type instead of speaking at any point.
