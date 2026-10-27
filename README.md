@@ -18,21 +18,8 @@
 
 ## 🎬 Demo
 
-<!--
-  HOW TO ADD YOUR VIDEO (pick one):
-
-  A) Upload directly to GitHub (best: plays inline)
-     Edit this README on github.com, drag your .mp4 (<100 MB) into the editor.
-     GitHub inserts a https://github.com/user-attachments/... link.
-     Paste that link on its own line below and delete the placeholder.
-
-  B) YouTube / Loom thumbnail link
+ YouTube / Loom thumbnail link
      [![Watch the demo](docs/media/demo-thumbnail.png)](https://youtu.be/YOUR_VIDEO_ID)
--->
-
-> 📹 **Demo video coming soon.** *(Replace this block with your video, see the comment above.)*
-
-<!-- Paste the video link here -->
 
 | Employee experience | Admin studio |
 |---|---|
@@ -292,25 +279,11 @@ supabase/migrations/        SQL migrations
 - **Free-tier dependencies.** Edge TTS is unofficial and may break, Groq and Cloudflare have daily quotas, and the Kaggle/ngrok MuseTalk host is not production-grade. Providers are isolated behind small interfaces for this reason.
 - **Passwords.** Admins set temporary passwords. There is no self-service "forgot password" flow yet.
 
----
-
-## Roadmap
-
-- [ ] Self-service password reset and forced change on first login
-- [ ] Production lip-sync hosting (dedicated GPU) and streaming video
-- [ ] Streaming STT for live partial transcripts
-- [ ] Per-avatar analytics dashboard (resolution rate, escalations, top questions)
-- [ ] Answer citations (show which document a reply came from)
-- [ ] Microsoft Entra ID SSO for all employees
-- [ ] Automated evaluation runs in the Testing lab on every knowledge update
-
----
 
 ## Author
 
-Built by **Eya Latiri** as part of an end-of-studies internship at **PwC Tunisia** (2026).
+Built by **Eya Latiri** as part of an internship at **PwC Tunisia** (2026).
 
-<!-- Add: LinkedIn · email · university -->
 
 ---
 
