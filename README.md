@@ -19,16 +19,7 @@
 ## 🎬 Demo
 
  YouTube / Loom thumbnail link
-     [![Watch the demo](docs/media/demo-thumbnail.png)](https://youtu.be/YOUR_VIDEO_ID)
-
-| Employee experience | Admin studio |
-|---|---|
-| ![Employee experience](docs/media/experience.png) | ![Admin studio](docs/media/admin.png) |
-| *Talking to an avatar by voice* | *Building an avatar, persona and knowledge base* |
-
-> Put screenshots in `docs/media/`. Until then the images above will show as broken, so remove the table if you don't want it.
-
----
+     https://youtu.be/r9Ovj3gaRNc 
 
 ## Table of contents
 
