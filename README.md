@@ -4,8 +4,6 @@
 
 # PwC Tunisia · AI Avatar Assistant
 
-**A voice-first, multilingual AI avatar that answers employees' questions from the firm's own knowledge, with a full admin studio to build, govern and test every avatar.**
-
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)
 ![Tailwind](https://img.shields.io/badge/Tailwind-v4-38bdf8?logo=tailwindcss&logoColor=white)
