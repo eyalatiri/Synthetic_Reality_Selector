@@ -18,7 +18,7 @@
 
 ## 🎬 Demo
 
- YouTube / Loom thumbnail link
+ YouTube link
      https://youtu.be/r9Ovj3gaRNc 
 
 ## Table of contents
